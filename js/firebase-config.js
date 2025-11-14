@@ -3,12 +3,13 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChang
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, query, where, updateDoc, deleteDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyCVXoePE_K0BxmKuYUh4gDCFenxV6tF7kg",
+  authDomain: "eightify-ea45f.firebaseapp.com",
+  projectId: "eightify-ea45f",
+  storageBucket: "eightify-ea45f.firebasestorage.app",
+  messagingSenderId: "827591118188",
+  appId: "1:827591118188:web:de855d05c512af745ef749",
+  measurementId: "G-N48L4C268V"
 };
 
 const app = initializeApp(firebaseConfig);
