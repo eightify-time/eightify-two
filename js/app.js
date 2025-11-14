@@ -1,4 +1,4 @@
-import { auth, db, googleProvider, signInWithPopup, signOut, onAuthStateChanged, collection, doc, setDoc, getDoc, getDocs, query, where, serverTimestamp, updateDoc, arrayUnion } from './firebase-config.js';
+import { auth, db, googleProvider, signInWithPopup, signOut, onAuthStateChanged, collection, doc, setDoc, getDoc, getDocs, query, where, serverTimestamp } from './firebase-config.js';
 
 class EightifyApp {
     constructor() {
@@ -18,9 +18,9 @@ class EightifyApp {
     }
 
     init() {
-        // Hapus loadFromLocalStorage() dari sini. Kita akan memuat data setelah status auth diketahui.
+        this.loadFromLocalStorage();
         this.setupEventListeners();
-        this.setupAuthListener(); // Auth listener akan menangani pemuatan data
+        this.setupAuthListener();
         this.setupDailyReset();
         this.updateUI();
         this.updateStats();
@@ -30,9 +30,6 @@ class EightifyApp {
         document.getElementById('menuToggle').addEventListener('click', () => this.toggleMenu());
         document.getElementById('googleLoginBtn').addEventListener('click', () => this.handleGoogleLogin());
         
-        // PERBAIKAN: Hubungkan tombol 'Change Avatar'
-        document.getElementById('changeAvatarBtn').addEventListener('click', () => this.changeAvatar());
-
         document.querySelectorAll('.start-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const category = e.target.dataset.category;
@@ -60,30 +57,20 @@ class EightifyApp {
         });
 
         document.getElementById('createCircleBtn').addEventListener('click', () => this.createCircle());
-        
-        // Pindahkan listener joinCircleBtn ke setupEventListeners agar selalu ada
-        // Kita akan menanganinya di loadCircle() juga untuk konten dinamis
-        const joinBtn = document.getElementById('joinCircleBtn');
-        if (joinBtn) {
-            joinBtn.addEventListener('click', () => this.joinCircle());
-        }
+        document.getElementById('joinCircleBtn').addEventListener('click', () => this.joinCircle());
     }
 
     setupAuthListener() {
         onAuthStateChanged(auth, async (user) => {
+            this.currentUser = user;
             if (user) {
-                this.currentUser = user;
                 document.getElementById('username').textContent = user.displayName || 'User';
                 if (user.photoURL) {
                     document.getElementById('userAvatar').src = user.photoURL;
                 }
                 document.getElementById('googleLoginBtn').textContent = 'Sign Out';
-                
-                // PERBAIKAN: Muat data dari Firebase saat login
                 await this.loadUserData();
-
             } else {
-                this.currentUser = null;
                 document.getElementById('username').textContent = 'Guest User';
                 document.getElementById('userAvatar').src = 'assets/default-avatar.svg';
                 document.getElementById('googleLoginBtn').innerHTML = `
@@ -95,40 +82,24 @@ class EightifyApp {
                     </svg>
                     Sign in with Google
                 `;
-                
-                // PERBAIKAN: Muat data dari sessionStorage untuk Guest
-                // Ini sesuai dengan Req 17/25 (data sementara)
-                this.loadFromSessionStorage();
             }
-            // Muat ulang UI/Stats setelah status data jelas
-            this.updateUI();
-            this.updateStats();
         });
     }
 
     async handleGoogleLogin() {
         if (this.currentUser) {
             await signOut(auth);
-            // PERBAIKAN: Reset data saat logout, auth listener akan memuat data guest
             this.todayData = { productive: 0, personal: 0, sleep: 0, activities: [] };
             this.updateUI();
             this.updateStats();
         } else {
             try {
                 await signInWithPopup(auth, googleProvider);
-                // Data akan dimuat oleh setupAuthListener
             } catch (error) {
                 console.error('Login error:', error);
                 this.showToast('Login failed. Please try again.');
             }
         }
-    }
-    
-    // PERBAIKAN: Fungsi baru untuk tombol avatar
-    changeAvatar() {
-        // Prompt tidak merinci cara kerja ini (mis. upload file).
-        // Jadi, kita tampilkan notifikasi placeholder.
-        this.showToast('Change Avatar feature coming soon!');
     }
 
     toggleMenu() {
@@ -140,9 +111,7 @@ class EightifyApp {
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.getElementById(page).classList.add('active');
         document.querySelectorAll('.nav-menu a').forEach(link => link.classList.remove('active'));
-        
-        const activeLink = document.querySelector(`[data-page="${page}"]`);
-        if (activeLink) activeLink.classList.add('active');
+        document.querySelector(`[data-page="${page}"]`).classList.add('active');
 
         if (page === 'statistics') {
             this.renderStatistics();
@@ -242,16 +211,14 @@ class EightifyApp {
             btn.classList.remove('active');
         });
         
-        // PERBAIKAN: Logika penyimpanan yang benar
+        this.saveToLocalStorage();
         if (this.currentUser) {
-            this.saveToFirebase(); // Simpan online jika login
-        } else {
-            this.saveToSessionStorage(); // Simpan sementara jika guest
+            this.saveToFirebase();
         }
         
         this.updateUI();
         this.updateStats();
-        this.showToast('Nice job! Activity saved ✨'); // Req 31
+        this.showToast('Nice job! Activity saved ✨');
     }
 
     updateUI() {
@@ -279,7 +246,7 @@ class EightifyApp {
             productive: this.todayData.productive,
             personal: this.todayData.personal,
             sleep: this.todayData.sleep,
-            empty: empty // Req 14
+            empty: empty
         };
 
         this.renderPieChart(data);
@@ -374,7 +341,7 @@ class EightifyApp {
     setupDailyReset() {
         setInterval(() => {
             const now = new Date();
-            const lastReset = localStorage.getItem('lastReset'); // Pakai localStorage untuk penanda reset
+            const lastReset = localStorage.getItem('lastReset');
             const today = this.getTodayDate();
 
             if (lastReset !== today) {
@@ -386,14 +353,7 @@ class EightifyApp {
     resetDaily() {
         this.todayData = { productive: 0, personal: 0, sleep: 0, activities: [] };
         localStorage.setItem('lastReset', this.getTodayDate());
-        
-        // PERBAIKAN: Hapus data sesi lama, simpan data baru (kosong)
-        if (this.currentUser) {
-            this.saveToFirebase(); // Simpan data kosong ke Firebase untuk hari baru
-        } else {
-            this.saveToSessionStorage(); // Simpan data kosong ke sessionStorage
-        }
-        
+        this.saveToLocalStorage();
         this.updateUI();
         this.updateStats();
         this.showToast('New day started! 🌅');
@@ -403,21 +363,20 @@ class EightifyApp {
         return new Date().toISOString().split('T')[0];
     }
 
-    // PERBAIKAN: Ubah nama menjadi saveToSessionStorage
-    saveToSessionStorage() {
-        sessionStorage.setItem('eightifyData', JSON.stringify(this.todayData));
+    saveToLocalStorage() {
+        localStorage.setItem('eightifyData', JSON.stringify(this.todayData));
+        localStorage.setItem('lastReset', this.getTodayDate());
     }
 
-    // PERBAIKAN: Ubah nama menjadi loadFromSessionStorage
-    loadFromSessionStorage() {
-        const data = sessionStorage.getItem('eightifyData');
-        const lastReset = localStorage.getItem('lastReset'); // Tetap cek lastReset
+    loadFromLocalStorage() {
+        const data = localStorage.getItem('eightifyData');
+        const lastReset = localStorage.getItem('lastReset');
         const today = this.getTodayDate();
 
         if (data && lastReset === today) {
             this.todayData = JSON.parse(data);
         } else {
-            this.resetDaily(); // Reset jika hari baru atau tidak ada data sesi
+            this.resetDaily();
         }
     }
 
@@ -428,9 +387,12 @@ class EightifyApp {
             const today = this.getTodayDate();
             const userDoc = doc(db, 'users', this.currentUser.uid, 'days', today);
             await setDoc(userDoc, {
-                ...this.todayData,
+                productive: this.todayData.productive,
+                personal: this.todayData.personal,
+                sleep: this.todayData.sleep,
+                activities: this.todayData.activities,
                 updatedAt: serverTimestamp()
-            }, { merge: true }); // Gunakan merge untuk jaga-jaga
+            });
         } catch (error) {
             console.error('Error saving to Firebase:', error);
         }
@@ -452,12 +414,9 @@ class EightifyApp {
                     sleep: data.sleep || 0,
                     activities: data.activities || []
                 };
-            } else {
-                // Hari baru untuk pengguna ini, reset data
-                this.todayData = { productive: 0, personal: 0, sleep: 0, activities: [] };
+                this.updateUI();
+                this.updateStats();
             }
-            this.updateUI();
-            this.updateStats();
         } catch (error) {
             console.error('Error loading from Firebase:', error);
         }
@@ -476,25 +435,21 @@ class EightifyApp {
         }
 
         try {
-            const circleRef = doc(collection(db, 'circles'));
-            const circleId = circleRef.id;
+            const circleId = Date.now().toString(36) + Math.random().toString(36).substr(2);
             const inviteCode = Math.random().toString(36).substr(2, 8).toUpperCase();
 
-            await setDoc(circleRef, {
+            await setDoc(doc(db, 'circles', circleId), {
                 name: name,
                 description: document.getElementById('circleDescription').value.trim(),
                 inviteCode: inviteCode,
                 createdBy: this.currentUser.uid,
-                members: [this.currentUser.uid], // Langsung tambahkan pembuat sebagai anggota
+                members: [this.currentUser.uid],
                 createdAt: serverTimestamp()
             });
 
-            // Tambahkan circle ke data user
-            const userCircleRef = doc(db, 'users', this.currentUser.uid);
-            await setDoc(userCircleRef, {
-                circles: arrayUnion(circleId)
-            }, { merge: true });
-
+            await setDoc(doc(db, 'users', this.currentUser.uid, 'circles', circleId), {
+                joinedAt: serverTimestamp()
+            });
 
             this.showToast(`Circle created! Invite code: ${inviteCode}`);
             document.getElementById('circleName').value = '';
@@ -506,7 +461,6 @@ class EightifyApp {
         }
     }
 
-    // PERBAIKAN: Implementasi joinCircle (Req 18)
     async joinCircle() {
         if (!this.currentUser) {
             this.showToast('Please sign in to join a circle');
@@ -514,145 +468,25 @@ class EightifyApp {
         }
 
         const code = prompt('Enter invite code:');
-        if (!code || code.trim() === '') return;
+        if (!code) return;
 
-        try {
-            // Cari circle dengan invite code
-            const q = query(collection(db, 'circles'), where("inviteCode", "==", code.trim().toUpperCase()));
-            const querySnapshot = await getDocs(q);
-
-            if (querySnapshot.empty) {
-                this.showToast('Invalid invite code');
-                return;
-            }
-
-            const circleDoc = querySnapshot.docs[0];
-            const circleId = circleDoc.id;
-
-            // Tambahkan user ke member list circle
-            await updateDoc(doc(db, 'circles', circleId), {
-                members: arrayUnion(this.currentUser.uid)
-            });
-
-            // Tambahkan circle ke data user
-            const userRef = doc(db, 'users', this.currentUser.uid);
-            await setDoc(userRef, {
-                circles: arrayUnion(circleId)
-            }, { merge: true });
-
-            this.showToast(`Successfully joined "${circleDoc.data().name}"!`);
-            this.navigateTo('circle'); // Refresh halaman circle
-
-        } catch (error) {
-            console.error('Error joining circle:', error);
-            this.showToast('Failed to join circle');
-        }
+        this.showToast('Circle feature coming soon!');
     }
 
-    // PERBAIKAN: Implementasi loadCircle (Req 19, 20)
     async loadCircle() {
-        const contentEl = document.getElementById('circleContent');
         if (!this.currentUser) {
-            contentEl.innerHTML = `
+            document.getElementById('circleContent').innerHTML = `
                 <p class="empty-state">Please sign in to join a circle.</p>
             `;
             return;
         }
 
-        // Cek apakah user tergabung di circle
-        const userRef = doc(db, 'users', this.currentUser.uid);
-        const userSnap = await getDoc(userRef);
-        const userData = userSnap.data();
-
-        if (!userData || !userData.circles || userData.circles.length === 0) {
-            contentEl.innerHTML = `
-                <p class="empty-state">You haven't joined a circle yet.</p>
-                <button class"join-circle-btn" id="joinCircleBtnDynamic">Join a Circle</button>
-            `;
-            document.getElementById('joinCircleBtnDynamic').addEventListener('click', () => this.joinCircle());
-            return;
-        }
-
-        // Ambil data circle pertama yang dia ikuti (untuk simplifikasi)
-        const circleId = userData.circles[0];
-        const circleRef = doc(db, 'circles', circleId);
-        const circleSnap = await getDoc(circleRef);
-
-        if (!circleSnap.exists()) {
-             contentEl.innerHTML = `<p class="empty-state">Circle data not found.</p>`;
-             return;
-        }
-
-        const circleData = circleSnap.data();
-        const memberIds = circleData.members || [];
-        const today = this.getTodayDate();
-
-        contentEl.innerHTML = `
-            <h2>${circleData.name}</h2>
-            <p>${circleData.description}</p>
-            <p><strong>Invite Code:</strong> ${circleData.inviteCode}</p>
-            <h3>Members</h3>
-            <div id="memberList">Loading member data...</div>
-            <h3>Activity Feed (Req 20)</h3>
-            <div id="activityFeed">Loading feed...</div>
+        document.getElementById('circleContent').innerHTML = `
+            <p class="empty-state">You haven't joined a circle yet.</p>
+            <button class="join-circle-btn" id="joinCircleBtn">Join a Circle</button>
         `;
         
-        // Ambil data harian semua member (Req 19)
-        const memberPromises = memberIds.map(async (uid) => {
-            const memberDayRef = doc(db, 'users', uid, 'days', today);
-            const memberDaySnap = await getDoc(memberDayRef);
-            
-            // Ambil data profile user (untuk nama/foto)
-            const memberProfileRef = doc(db, 'users', uid);
-            const memberProfileSnap = await getDoc(memberProfileRef);
-            const profileName = memberProfileSnap.data()?.displayName || 'Member'; // Perlu profil user
-            
-            if (memberDaySnap.exists()) {
-                return { ...memberDaySnap.data(), name: profileName };
-            }
-            return { productive: 0, personal: 0, sleep: 0, activities: [], name: profileName };
-        });
-
-        const membersData = await Promise.all(memberPromises);
-        
-        // Render Member List (Req 19)
-        const memberListEl = document.getElementById('memberList');
-        memberListEl.innerHTML = '';
-        membersData.forEach(member => {
-            const el = document.createElement('div');
-            el.className = 'member-item';
-            // Ini bisa diganti dengan 3 bar seperti di prompt
-            el.innerHTML = `
-                <strong>${member.name}</strong>
-                <p>Prod: ${(member.productive / 3600).toFixed(1)}h | 
-                   Pers: ${(member.personal / 3600).toFixed(1)}h | 
-                   Sleep: ${(member.sleep / 3600).toFixed(1)}h</p>
-            `;
-            memberListEl.appendChild(el);
-        });
-
-        // Render Activity Feed (Req 20)
-        const activityFeedEl = document.getElementById('activityFeed');
-        activityFeedEl.innerHTML = '';
-        const allActivities = membersData.flatMap(member => 
-            member.activities.map(act => ({ ...act, userName: member.name }))
-        );
-        
-        // Urutkan berdasarkan timestamp terbaru
-        allActivities.sort((a, b) => b.timestamp - a.timestamp);
-        
-        allActivities.slice(0, 10).forEach(act => { // Ambil 10 aktivitas terbaru
-            const el = document.createElement('div');
-            el.className = 'feed-item';
-            el.innerHTML = `
-                <p><strong>${act.userName}</strong> finished: ${act.name} (${Math.floor(act.duration/60)} min)</p>
-            `;
-            activityFeedEl.appendChild(el);
-        });
-
-        if (allActivities.length === 0) {
-            activityFeedEl.innerHTML = '<p class="empty-state">No activity from members today.</p>';
-        }
+        document.getElementById('joinCircleBtn').addEventListener('click', () => this.joinCircle());
     }
 
     showToast(message) {
