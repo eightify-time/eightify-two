@@ -48,16 +48,29 @@ class EightifyApp {
             if (e.key === 'Enter') this.startActivity();
         });
 
-        // Diperbarui untuk menangani link dinamis
+        // ==========================================================
+        // FUNGSI INI DIPERBARUI
+        // ==========================================================
         document.getElementById('navMenuList').addEventListener('click', (e) => {
-            if (e.target.tagName === 'A') {
-                e.preventDefault();
-                const page = e.target.dataset.page;
-                const circleId = e.target.dataset.circleId; // Ambil circleId
-                this.navigateTo(page, circleId); // Kirim circleId ke navigateTo
-                this.toggleMenu();
+            const link = e.target.closest('a'); // Lebih aman jika diklik <span> di dalam <a>
+            if (!link) return; // Klik di luar link
+
+            e.preventDefault();
+            const page = link.dataset.page;
+            const circleId = link.dataset.circleId;
+            const action = link.dataset.action; // Ambil data-action
+
+            if (page) {
+                // Ini untuk navigasi halaman (Home, Statistics, nama circle, Create)
+                this.navigateTo(page, circleId);
+            } else if (action === 'join-circle') {
+                // Ini untuk tombol 'Join Circle'
+                this.joinCircle(); // Panggil fungsi joinCircle yang sudah ada
             }
+            
+            this.toggleMenu();
         });
+        // ==========================================================
 
         document.getElementById('createCircleBtn').addEventListener('click', () => this.createCircle());
     }
@@ -127,21 +140,17 @@ class EightifyApp {
         document.getElementById('sidenav').classList.toggle('active');
     }
 
-    // UPDATED navigateTo untuk menerima circleId
     navigateTo(page, circleId = null) {
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-        // Pastikan halaman 'page' ada sebelum mencoba menambah kelas
         const pageElement = document.getElementById(page);
         if (pageElement) {
             pageElement.classList.add('active');
         } else {
             console.error(`Page with id "${page}" not found.`);
-            // Arahkan ke home jika halaman tidak ditemukan
             document.getElementById('home').classList.add('active');
             page = 'home';
         }
         
-        // Update link aktif di navigasi
         document.querySelectorAll('.nav-menu a').forEach(link => link.classList.remove('active'));
         let activeLink;
         if (page === 'circle' && circleId) {
@@ -156,7 +165,7 @@ class EightifyApp {
         if (page === 'statistics') {
             this.renderStatistics();
         } else if (page === 'circle') {
-            this.loadCircle(circleId); // Kirim circleId ke loadCircle
+            this.loadCircle(circleId); 
         }
     }
 
@@ -218,7 +227,7 @@ class EightifyApp {
         }
 
         const circumference = 565.48;
-        const totalSeconds = 8 * 3600; // 8 hours goal
+        const totalSeconds = 8 * 3600; 
         const categorySeconds = this.todayData[this.currentActivity?.category] || 0;
         const progress = ((categorySeconds + this.elapsedSeconds) / totalSeconds) * circumference;
         
@@ -471,7 +480,7 @@ class EightifyApp {
                     activities: data.activities || []
                 };
             } else {
-                this.saveToFirebase(); // Create a doc for today
+                this.saveToFirebase(); 
             }
             this.updateUI();
             this.updateStats();
@@ -514,8 +523,8 @@ class EightifyApp {
             document.getElementById('circleName').value = '';
             document.getElementById('circleDescription').value = '';
             
-            await this.renderUserCirclesInNav(); // REFRESH NAVIGASI
-            this.navigateTo('circle', circleId); // Langsung buka circle yang baru dibuat
+            await this.renderUserCirclesInNav(); 
+            this.navigateTo('circle', circleId); 
         } catch (error) {
             console.error('Error creating circle:', error);
             this.showToast('Failed to create circle');
@@ -559,15 +568,14 @@ class EightifyApp {
             });
 
             this.showToast(`Successfully joined ${circleData.name}!`);
-            await this.renderUserCirclesInNav(); // REFRESH NAVIGASI
-            this.navigateTo('circle', circleId); // Langsung buka circle yang baru di-join
+            await this.renderUserCirclesInNav(); 
+            this.navigateTo('circle', circleId); 
         } catch (error) {
             console.error('Error joining circle:', error);
             this.showToast('Failed to join circle');
         }
     }
 
-    // UPDATED loadCircle untuk menerima circleId spesifik
     async loadCircle(circleId = null) {
         const circleContentEl = document.getElementById('circleContent');
         if (!this.currentUser) {
@@ -580,7 +588,6 @@ class EightifyApp {
         try {
             let circleToLoadId = circleId;
 
-            // Jika tidak ada circleId spesifik (misal dari link lama), muat circle pertama
             if (!circleToLoadId) {
                 const userCirclesCol = collection(db, 'users', this.currentUser.uid, 'circles');
                 const userCirclesSnap = await getDocs(userCirclesCol);
@@ -593,15 +600,14 @@ class EightifyApp {
                     document.getElementById('joinCircleBtn').addEventListener('click', () => this.joinCircle());
                     return;
                 }
-                circleToLoadId = userCirclesSnap.docs[0].id; // Ambil circle pertama
+                circleToLoadId = userCirclesSnap.docs[0].id; 
             }
 
             const circleDocSnap = await getDoc(doc(db, 'circles', circleToLoadId));
             if (!circleDocSnap.exists()) {
                 this.showToast('Error: Circle data not found.');
-                // Hapus circle dari navigasi jika tidak ada
                 await this.renderUserCirclesInNav();
-                this.navigateTo('home'); // Arahkan ke home
+                this.navigateTo('home'); 
                 return;
             }
 
@@ -637,7 +643,6 @@ class EightifyApp {
                 .sort((a, b) => b.productive - a.productive)
                 .slice(0, 3);
 
-            // Kirim seluruh objek circleData ke renderCircleLayout
             this.renderCircleLayout(circleContentEl, circleData);
             this.renderCircleMembers(document.getElementById('circleMembersList'), allMembersData);
             this.renderActivityFeed(document.getElementById('circleActivityFeed'), activityFeed);
@@ -650,7 +655,6 @@ class EightifyApp {
         }
     }
 
-    // UPDATED renderCircleLayout untuk fungsionalitas invite
     renderCircleLayout(container, circleData) {
         container.innerHTML = `
             <div class="circle-header">
@@ -677,14 +681,11 @@ class EightifyApp {
             </div>
         `;
         
-        // Buat tombol invite berfungsi
         document.getElementById('inviteCircleBtn').addEventListener('click', () => {
-            // Tampilkan prompt untuk copy-paste
             prompt('Share this invite code with your team:', circleData.inviteCode);
         });
     }
 
-    // TYPO DIPERBAIKI (class="member-stats")
     renderCircleMembers(container, members) {
         if (!members || members.length === 0) {
             container.innerHTML = `<p class="empty-state">No members to show.</p>`;
@@ -800,11 +801,9 @@ class EightifyApp {
         return Math.floor(seconds) + "s ago";
     }
 
-    // NEW FUNCTION untuk render circle di navigasi
     async renderUserCirclesInNav() {
         if (!this.currentUser) return;
 
-        // Hapus link circle lama
         document.querySelectorAll('.nav-circle-link').forEach(link => link.remove());
 
         const navMenuList = document.getElementById('navMenuList');
@@ -813,23 +812,20 @@ class EightifyApp {
         const circlesCol = collection(db, 'users', this.currentUser.uid, 'circles');
         const circlesSnap = await getDocs(circlesCol);
 
-        this.userCircles = []; // Reset array
+        this.userCircles = []; 
         circlesSnap.docs.forEach(doc => {
             const circle = { id: doc.id, name: doc.data().name };
             this.userCircles.push(circle);
 
             const li = document.createElement('li');
-            li.className = 'nav-circle-link'; // Kelas untuk identifikasi
+            li.className = 'nav-circle-link'; 
             
-            // Buat link dengan data-circle-id
             li.innerHTML = `<a href="#circle" data-page="circle" data-circle-id="${circle.id}">${circle.name}</a>`;
             
-            // Sisipkan sebelum tombol "Create New Circle"
             navMenuList.insertBefore(li, createCircleNav);
         });
     }
 
-    // NEW FUNCTION untuk reset navigasi saat logout
     resetNavMenu() {
         document.querySelectorAll('.nav-circle-link').forEach(link => link.remove());
         this.userCircles = [];
