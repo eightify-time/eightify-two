@@ -130,7 +130,16 @@ class EightifyApp {
     // UPDATED navigateTo untuk menerima circleId
     navigateTo(page, circleId = null) {
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-        document.getElementById(page).classList.add('active');
+        // Pastikan halaman 'page' ada sebelum mencoba menambah kelas
+        const pageElement = document.getElementById(page);
+        if (pageElement) {
+            pageElement.classList.add('active');
+        } else {
+            console.error(`Page with id "${page}" not found.`);
+            // Arahkan ke home jika halaman tidak ditemukan
+            document.getElementById('home').classList.add('active');
+            page = 'home';
+        }
         
         // Update link aktif di navigasi
         document.querySelectorAll('.nav-menu a').forEach(link => link.classList.remove('active'));
@@ -151,7 +160,6 @@ class EightifyApp {
         }
     }
 
-    // FUNGSI LAMA YANG PENTING (JANGAN DIHAPUS)
     showActivityModal(category) {
         this.selectedCategory = category;
         document.getElementById('activityModal').classList.add('active');
@@ -159,12 +167,10 @@ class EightifyApp {
         document.getElementById('activityInput').focus();
     }
 
-    // FUNGSI LAMA YANG PENTING (JANGAN DIHAPUS)
     hideActivityModal() {
         document.getElementById('activityModal').classList.remove('active');
     }
 
-    // FUNGSI LAMA YANG PENTING (JANGAN DIHAPUS)
     startActivity() {
         const activityName = document.getElementById('activityInput').value.trim();
         if (!activityName) {
@@ -189,7 +195,6 @@ class EightifyApp {
         btn.classList.add('active');
     }
 
-    // FUNGSI LAMA YANG PENTING (JANGAN DIHAPUS)
     startTimer() {
         if (this.timerInterval) clearInterval(this.timerInterval);
         
@@ -199,7 +204,6 @@ class EightifyApp {
         }, 1000);
     }
 
-    // FUNGSI LAMA YANG PENTING (JANGAN DIHAPUS)
     updateTimerDisplay() {
         const hours = Math.floor(this.elapsedSeconds / 3600);
         const minutes = Math.floor((this.elapsedSeconds % 3600) / 60);
@@ -224,7 +228,6 @@ class EightifyApp {
         }
     }
 
-    // FUNGSI LAMA YANG PENTING (JANGAN DIHAPUS)
     stopActivity() {
         if (!this.currentActivity) return;
 
@@ -262,7 +265,6 @@ class EightifyApp {
         this.showToast('Nice job! Activity saved ✨');
     }
 
-    // FUNGSI LAMA YANG PENTING (JANGAN DIHAPUS)
     updateUI() {
         if (this.currentActivity) {
             document.getElementById('currentActivity').style.display = 'block';
@@ -280,10 +282,16 @@ class EightifyApp {
         });
     }
 
-    // FUNGSI LAMA YANG PENTING (JANGAN DIHAPUS)
     updateStats() {
         const total = this.todayData.productive + this.todayData.personal + this.todayData.sleep;
         if (total === 0) {
+            const canvas = document.getElementById('pieChart');
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+            const legend = document.getElementById('chartLegend');
+            if (legend) legend.innerHTML = '';
             return;
         }
         const empty = Math.max(0, (24 * 3600) - total);
@@ -298,7 +306,6 @@ class EightifyApp {
         this.renderPieChart(data);
     }
 
-    // FUNGSI LAMA YANG PENTING (JANGAN DIHAPUS)
     renderPieChart(data) {
         const canvas = document.getElementById('pieChart');
         if (!canvas) return;
@@ -339,7 +346,6 @@ class EightifyApp {
         this.renderLegend(data, colors);
     }
 
-    // FUNGSI LAMA YANG PENTING (JANGAN DIHAPUS)
     renderLegend(data, colors) {
         const legend = document.getElementById('chartLegend');
         if (!legend) return;
@@ -359,7 +365,6 @@ class EightifyApp {
         });
     }
 
-    // FUNGSI LAMA YANG PENTING (JANGAN DIHAPUS)
     renderStatistics() {
         const activityList = document.getElementById('activityList');
         
@@ -389,7 +394,6 @@ class EightifyApp {
         });
     }
 
-    // FUNGSI LAMA YANG PENTING (JANGAN DIHAPUS)
     setupDailyReset() {
         setInterval(() => {
             const now = new Date();
@@ -402,7 +406,6 @@ class EightifyApp {
         }, 60000);
     }
 
-    // FUNGSI LAMA YANG PENTING (JANGAN DIHAPUS)
     resetDaily() {
         this.todayData = { productive: 0, personal: 0, sleep: 0, activities: [] };
         localStorage.setItem('lastReset', this.getTodayDate());
@@ -412,18 +415,15 @@ class EightifyApp {
         this.showToast('New day started! 🌅');
     }
 
-    // FUNGSI LAMA YANG PENTING (JANGAN DIHAPUS)
     getTodayDate() {
         return new Date().toISOString().split('T')[0];
     }
 
-    // FUNGSI LAMA YANG PENTING (JANGAN DIHAPUS)
     saveToLocalStorage() {
         localStorage.setItem('eightifyData', JSON.stringify(this.todayData));
         localStorage.setItem('lastReset', this.getTodayDate());
     }
 
-    // FUNGSI LAMA YANG PENTING (JANGAN DIHAPUS)
     loadFromLocalStorage() {
         const data = localStorage.getItem('eightifyData');
         const lastReset = localStorage.getItem('lastReset');
@@ -436,7 +436,6 @@ class EightifyApp {
         }
     }
 
-    // FUNGSI LAMA YANG PENTING (JANGAN DIHAPUS)
     async saveToFirebase() {
         if (!this.currentUser) return;
 
@@ -455,7 +454,6 @@ class EightifyApp {
         }
     }
 
-    // FUNGSI LAMA YANG PENTING (JANGAN DIHAPUS)
     async loadUserData() {
         if (!this.currentUser) return;
 
@@ -482,7 +480,6 @@ class EightifyApp {
         }
     }
 
-    // FUNGSI YANG DIPERBARUI
     async createCircle() {
         if (!this.currentUser) {
             this.showToast('Please sign in to create a circle');
@@ -525,7 +522,6 @@ class EightifyApp {
         }
     }
 
-    // FUNGSI YANG DIPERBARUI
     async joinCircle() {
         if (!this.currentUser) {
             this.showToast('Please sign in to join a circle');
@@ -571,7 +567,7 @@ class EightifyApp {
         }
     }
 
-    // FUNGSI YANG DIPERBARUI
+    // UPDATED loadCircle untuk menerima circleId spesifik
     async loadCircle(circleId = null) {
         const circleContentEl = document.getElementById('circleContent');
         if (!this.currentUser) {
@@ -584,6 +580,7 @@ class EightifyApp {
         try {
             let circleToLoadId = circleId;
 
+            // Jika tidak ada circleId spesifik (misal dari link lama), muat circle pertama
             if (!circleToLoadId) {
                 const userCirclesCol = collection(db, 'users', this.currentUser.uid, 'circles');
                 const userCirclesSnap = await getDocs(userCirclesCol);
@@ -602,6 +599,9 @@ class EightifyApp {
             const circleDocSnap = await getDoc(doc(db, 'circles', circleToLoadId));
             if (!circleDocSnap.exists()) {
                 this.showToast('Error: Circle data not found.');
+                // Hapus circle dari navigasi jika tidak ada
+                await this.renderUserCirclesInNav();
+                this.navigateTo('home'); // Arahkan ke home
                 return;
             }
 
@@ -637,6 +637,7 @@ class EightifyApp {
                 .sort((a, b) => b.productive - a.productive)
                 .slice(0, 3);
 
+            // Kirim seluruh objek circleData ke renderCircleLayout
             this.renderCircleLayout(circleContentEl, circleData);
             this.renderCircleMembers(document.getElementById('circleMembersList'), allMembersData);
             this.renderActivityFeed(document.getElementById('circleActivityFeed'), activityFeed);
@@ -649,7 +650,7 @@ class EightifyApp {
         }
     }
 
-    // FUNGSI YANG DIPERBARUI
+    // UPDATED renderCircleLayout untuk fungsionalitas invite
     renderCircleLayout(container, circleData) {
         container.innerHTML = `
             <div class="circle-header">
@@ -676,12 +677,14 @@ class EightifyApp {
             </div>
         `;
         
+        // Buat tombol invite berfungsi
         document.getElementById('inviteCircleBtn').addEventListener('click', () => {
+            // Tampilkan prompt untuk copy-paste
             prompt('Share this invite code with your team:', circleData.inviteCode);
         });
     }
 
-    // FUNGSI LAMA YANG PENTING (JANGAN DIHAPUS)
+    // TYPO DIPERBAIKI (class="member-stats")
     renderCircleMembers(container, members) {
         if (!members || members.length === 0) {
             container.innerHTML = `<p class="empty-state">No members to show.</p>`;
@@ -705,7 +708,7 @@ class EightifyApp {
                         <h4>${member.displayName}</h4>
                     </div>
                 </div>
-                <div class.member-stats">
+                <div class="member-stats"> 
                     <div class="stat-item">
                         <span>Productive</span>
                         <div class="progress-bar">
@@ -733,7 +736,6 @@ class EightifyApp {
         }).join('');
     }
 
-    // FUNGSI LAMA YANG PENTING (JANGAN DIHAPUS)
     renderActivityFeed(container, activities) {
         if (!activities || activities.length === 0) {
             container.innerHTML = `<p class="empty-state">No recent activity.</p>`;
@@ -756,7 +758,6 @@ class EightifyApp {
         }).join('');
     }
 
-    // FUNGSI LAMA YANG PENTING (JANGAN DIHAPUS)
     renderLeaderboard(container, leaderboard) {
         if (!leaderboard || leaderboard.length === 0) {
             container.innerHTML = `<p class="empty-state">No data for leaderboard.</p>`;
@@ -782,7 +783,6 @@ class EightifyApp {
         `;
     }
 
-    // FUNGSI LAMA YANG PENTING (JANGAN DIHAPUS)
     formatTimeAgo(timestamp) {
         const now = Date.now();
         const seconds = Math.floor((now - timestamp) / 1000);
@@ -800,7 +800,7 @@ class EightifyApp {
         return Math.floor(seconds) + "s ago";
     }
 
-    // FUNGSI BARU
+    // NEW FUNCTION untuk render circle di navigasi
     async renderUserCirclesInNav() {
         if (!this.currentUser) return;
 
@@ -829,13 +829,12 @@ class EightifyApp {
         });
     }
 
-    // FUNGSI BARU
+    // NEW FUNCTION untuk reset navigasi saat logout
     resetNavMenu() {
         document.querySelectorAll('.nav-circle-link').forEach(link => link.remove());
         this.userCircles = [];
     }
 
-    // FUNGSI LAMA YANG PENTING (JANGAN DIHAPUS)
     showToast(message) {
         const toast = document.getElementById('toast');
         toast.textContent = message;
