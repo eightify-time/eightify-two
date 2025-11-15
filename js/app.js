@@ -27,6 +27,9 @@ class EightifyApp {
         this.updateStats();
     }
 
+    // ==========================================================
+    // INI BAGIAN YANG DIPERBAIKI
+    // ==========================================================
     setupEventListeners() {
         document.getElementById('menuToggle').addEventListener('click', () => this.toggleMenu());
         document.getElementById('googleLoginBtn').addEventListener('click', () => this.handleGoogleLogin());
@@ -48,32 +51,31 @@ class EightifyApp {
             if (e.key === 'Enter') this.startActivity();
         });
 
-        // ==========================================================
-        // FUNGSI INI DIPERBARUI
-        // ==========================================================
         document.getElementById('navMenuList').addEventListener('click', (e) => {
-            const link = e.target.closest('a'); // Lebih aman jika diklik <span> di dalam <a>
-            if (!link) return; // Klik di luar link
+            const link = e.target.closest('a'); 
+            if (!link) return; 
 
             e.preventDefault();
             const page = link.dataset.page;
             const circleId = link.dataset.circleId;
-            const action = link.dataset.action; // Ambil data-action
+            const action = link.dataset.action; 
 
             if (page) {
                 // Ini untuk navigasi halaman (Home, Statistics, nama circle, Create)
                 this.navigateTo(page, circleId);
+                this.toggleMenu(); // <-- toggleMenu HANYA jalan kalau pindah halaman
             } else if (action === 'join-circle') {
                 // Ini untuk tombol 'Join Circle'
-                this.joinCircle(); // Panggil fungsi joinCircle yang sudah ada
+                // Biarkan menu tetap terbuka saat prompt muncul
+                this.joinCircle(); 
             }
-            
-            this.toggleMenu();
         });
-        // ==========================================================
 
         document.getElementById('createCircleBtn').addEventListener('click', () => this.createCircle());
     }
+    // ==========================================================
+    // AKHIR DARI BAGIAN YANG DIPERBAIKI
+    // ==========================================================
 
     setupAuthListener() {
         onAuthStateChanged(auth, async (user) => {
@@ -87,7 +89,7 @@ class EightifyApp {
                 
                 await this.updateUserProfile(user); 
                 await this.loadUserData();
-                await this.renderUserCirclesInNav(); // Muat circle di nav setelah login
+                await this.renderUserCirclesInNav(); 
             } else {
                 document.getElementById('username').textContent = 'Guest User';
                 document.getElementById('userAvatar').src = 'assets/default-avatar.svg';
@@ -100,7 +102,7 @@ class EightifyApp {
                     </svg>
                     Sign in with Google
                 `;
-                this.resetNavMenu(); // Hapus circle dari nav saat logout
+                this.resetNavMenu(); 
             }
         });
     }
@@ -378,7 +380,7 @@ class EightifyApp {
         const activityList = document.getElementById('activityList');
         
         if (this.todayData.activities.length === 0) {
-            activityList.innerHTML = '<p class="empty-state">No activities recorded yet.</p>';
+            activityList.innerHTML = '<p class.empty-state">No activities recorded yet.</p>';
             return;
         }
 
@@ -538,7 +540,7 @@ class EightifyApp {
         }
 
         const code = prompt('Enter invite code:');
-        if (!code) return;
+        if (!code) return; // User menekan 'Cancel'
 
         try {
             const q = query(collection(db, 'circles'), where('inviteCode', '==', code.toUpperCase()));
@@ -570,6 +572,7 @@ class EightifyApp {
             this.showToast(`Successfully joined ${circleData.name}!`);
             await this.renderUserCirclesInNav(); 
             this.navigateTo('circle', circleId); 
+            this.toggleMenu(); // Tutup menu setelah berhasil join
         } catch (error) {
             console.error('Error joining circle:', error);
             this.showToast('Failed to join circle');
@@ -579,7 +582,7 @@ class EightifyApp {
     async loadCircle(circleId = null) {
         const circleContentEl = document.getElementById('circleContent');
         if (!this.currentUser) {
-            circleContentEl.innerHTML = `<p class="empty-state">Please sign in to view your circle.</p>`;
+            circleContentEl.innerHTML = `<p class.empty-state">Please sign in to view your circle.</p>`;
             return;
         }
 
@@ -597,6 +600,8 @@ class EightifyApp {
                         <p class="empty-state">You haven't joined a circle yet.</p>
                         <button class="join-circle-btn" id="joinCircleBtn">Join a Circle</button>
                     `;
+                    // Hati-hati, joinCircleBtn di sini mungkin tidak punya listener
+                    // Tapi kita sudah punya di nav, jadi ini oke
                     document.getElementById('joinCircleBtn').addEventListener('click', () => this.joinCircle());
                     return;
                 }
@@ -748,7 +753,7 @@ class EightifyApp {
             const timeAgo = this.formatTimeAgo(act.timestamp);
 
             return `
-            <div class="feed-item">
+            <div class."feed-item">
                 <div class="feed-icon">✓</div>
                 <div class="feed-info">
                     <p><b>${act.userName}</b> finished: ${act.name} (${durationMin}m)</p>
