@@ -1,4 +1,4 @@
-import { auth, db, googleProvider, signInWithPopup, signOut, onAuthStateChanged, collection, doc, setDoc, getDoc, getDocs, query, where, serverTimestamp } from './firebase-config.js';
+import { auth, db, googleProvider, signInWithPopup, signOut, onAuthStateChanged, collection, doc, setDoc, getDoc, getDocs, query, where, serverTimestamp, updateDoc, arrayUnion } from './firebase-config.js';
 
 class EightifyApp {
     constructor() {
@@ -57,7 +57,7 @@ class EightifyApp {
         });
 
         document.getElementById('createCircleBtn').addEventListener('click', () => this.createCircle());
-        document.getElementById('joinCircleBtn').addEventListener('click', () => this.joinCircle());
+        // joinCircleBtn event listener will be added dynamically in loadCircle
     }
 
     setupAuthListener() {
@@ -69,6 +69,8 @@ class EightifyApp {
                     document.getElementById('userAvatar').src = user.photoURL;
                 }
                 document.getElementById('googleLoginBtn').textContent = 'Sign Out';
+                
+                await this.updateUserProfile(user); // Save user profile to Firestore
                 await this.loadUserData();
             } else {
                 document.getElementById('username').textContent = 'Guest User';
@@ -84,6 +86,21 @@ class EightifyApp {
                 `;
             }
         });
+    }
+
+    // NEW function to save user profile
+    async updateUserProfile(user) {
+        if (!user) return;
+        const userDocRef = doc(db, 'users', user.uid);
+        try {
+            await setDoc(userDocRef, {
+                displayName: user.displayName,
+                photoURL: user.photoURL,
+                uid: user.uid
+            }, { merge: true }); // Use merge to not overwrite other fields
+        } catch (error) {
+            console.error("Error updating user profile:", error);
+        }
     }
 
     async handleGoogleLogin() {
@@ -116,7 +133,7 @@ class EightifyApp {
         if (page === 'statistics') {
             this.renderStatistics();
         } else if (page === 'circle') {
-            this.loadCircle();
+            this.loadCircle(); // Re-load circle data every time we navigate
         }
     }
 
@@ -178,10 +195,14 @@ class EightifyApp {
         }
 
         const circumference = 565.48;
-        const totalSeconds = 8 * 3600;
+        const totalSeconds = 8 * 3600; // 8 hours goal
         const categorySeconds = this.todayData[this.currentActivity?.category] || 0;
         const progress = ((categorySeconds + this.elapsedSeconds) / totalSeconds) * circumference;
-        document.getElementById('timerProgress').style.strokeDashoffset = circumference - progress;
+        
+        const timerProgress = document.getElementById('timerProgress');
+        if (timerProgress) {
+             timerProgress.style.strokeDashoffset = circumference - Math.min(progress, circumference);
+        }
     }
 
     stopActivity() {
@@ -240,6 +261,10 @@ class EightifyApp {
 
     updateStats() {
         const total = this.todayData.productive + this.todayData.personal + this.todayData.sleep;
+        if (total === 0) {
+            // Don't draw chart if no data
+            return;
+        }
         const empty = Math.max(0, (24 * 3600) - total);
 
         const data = {
@@ -276,6 +301,7 @@ class EightifyApp {
         let startAngle = -Math.PI / 2;
 
         Object.entries(data).forEach(([category, value]) => {
+            if (value <= 0) return;
             const sliceAngle = (value / total) * 2 * Math.PI;
             
             ctx.beginPath();
@@ -298,6 +324,7 @@ class EightifyApp {
         legend.innerHTML = '';
 
         Object.entries(data).forEach(([category, seconds]) => {
+            if (category === 'empty' && seconds === 0) return;
             const hours = (seconds / 3600).toFixed(1);
             const item = document.createElement('div');
             item.className = 'legend-item';
@@ -414,9 +441,12 @@ class EightifyApp {
                     sleep: data.sleep || 0,
                     activities: data.activities || []
                 };
-                this.updateUI();
-                this.updateStats();
+            } else {
+                // No data for today, keep local (which should be empty)
+                this.saveToFirebase(); // Create a doc for today
             }
+            this.updateUI();
+            this.updateStats();
         } catch (error) {
             console.error('Error loading from Firebase:', error);
         }
@@ -443,12 +473,14 @@ class EightifyApp {
                 description: document.getElementById('circleDescription').value.trim(),
                 inviteCode: inviteCode,
                 createdBy: this.currentUser.uid,
-                members: [this.currentUser.uid],
+                members: [this.currentUser.uid], // Add creator as first member
                 createdAt: serverTimestamp()
             });
 
+            // Add circle to user's subcollection
             await setDoc(doc(db, 'users', this.currentUser.uid, 'circles', circleId), {
-                joinedAt: serverTimestamp()
+                joinedAt: serverTimestamp(),
+                name: name
             });
 
             this.showToast(`Circle created! Invite code: ${inviteCode}`);
@@ -461,6 +493,7 @@ class EightifyApp {
         }
     }
 
+    // UPDATED function to join a circle
     async joinCircle() {
         if (!this.currentUser) {
             this.showToast('Please sign in to join a circle');
@@ -470,23 +503,274 @@ class EightifyApp {
         const code = prompt('Enter invite code:');
         if (!code) return;
 
-        this.showToast('Circle feature coming soon!');
+        try {
+            const q = query(collection(db, 'circles'), where('inviteCode', '==', code.toUpperCase()));
+            const querySnapshot = await getDocs(q);
+
+            if (querySnapshot.empty) {
+                this.showToast('Invalid invite code');
+                return;
+            }
+
+            const circleDoc = querySnapshot.docs[0];
+            const circleId = circleDoc.id;
+            const circleData = circleDoc.data();
+
+            if (circleData.members.includes(this.currentUser.uid)) {
+                this.showToast('You are already in this circle');
+                return;
+            }
+
+            // Add user to circle's member array
+            await updateDoc(doc(db, 'circles', circleId), {
+                members: arrayUnion(this.currentUser.uid)
+            });
+
+            // Add circle to user's subcollection
+            await setDoc(doc(db, 'users', this.currentUser.uid, 'circles', circleId), {
+                joinedAt: serverTimestamp(),
+                name: circleData.name
+            });
+
+            this.showToast(`Successfully joined ${circleData.name}!`);
+            this.loadCircle(); // Reload the circle page
+        } catch (error) {
+            console.error('Error joining circle:', error);
+            this.showToast('Failed to join circle');
+        }
     }
 
+    // UPDATED function to load and render the circle page
     async loadCircle() {
+        const circleContentEl = document.getElementById('circleContent');
         if (!this.currentUser) {
-            document.getElementById('circleContent').innerHTML = `
-                <p class="empty-state">Please sign in to join a circle.</p>
+            circleContentEl.innerHTML = `
+                <p class="empty-state">Please sign in to view your circle.</p>
             `;
             return;
         }
 
-        document.getElementById('circleContent').innerHTML = `
-            <p class="empty-state">You haven't joined a circle yet.</p>
-            <button class="join-circle-btn" id="joinCircleBtn">Join a Circle</button>
+        circleContentEl.innerHTML = `<p class="empty-state">Loading circle data...</p>`;
+
+        try {
+            // 1. Find which circle(s) the user is in
+            const userCirclesCol = collection(db, 'users', this.currentUser.uid, 'circles');
+            const userCirclesSnap = await getDocs(userCirclesCol);
+
+            if (userCirclesSnap.empty) {
+                circleContentEl.innerHTML = `
+                    <p class="empty-state">You haven't joined a circle yet.</p>
+                    <button class="join-circle-btn" id="joinCircleBtn">Join a Circle</button>
+                `;
+                document.getElementById('joinCircleBtn').addEventListener('click', () => this.joinCircle());
+                return;
+            }
+
+            // 2. For this demo, we'll just load the *first* circle
+            const firstCircleId = userCirclesSnap.docs[0].id;
+            const circleDocSnap = await getDoc(doc(db, 'circles', firstCircleId));
+
+            if (!circleDocSnap.exists()) {
+                this.showToast('Error: Circle data not found.');
+                return;
+            }
+
+            const circleData = circleDocSnap.data();
+            const memberUIDs = circleData.members;
+            const today = this.getTodayDate();
+
+            // 3. Fetch profile and today's data for ALL members
+            const memberDataPromises = memberUIDs.map(async (uid) => {
+                const userDocRef = doc(db, 'users', uid);
+                const dayDocRef = doc(db, 'users', uid, 'days', today);
+                
+                const [userSnap, daySnap] = await Promise.all([
+                    getDoc(userDocRef),
+                    getDoc(dayDocRef)
+                ]);
+
+                const userData = userSnap.exists() ? userSnap.data() : { displayName: 'Unknown User', photoURL: 'assets/default-avatar.svg' };
+                const dayData = daySnap.exists() ? daySnap.data() : { productive: 0, personal: 0, sleep: 0, activities: [] };
+
+                return { ...userData, ...dayData };
+            });
+
+            const allMembersData = await Promise.all(memberDataPromises);
+
+            // 4. Aggregate data for feed and leaderboard
+            const activityFeed = allMembersData
+                .flatMap(member => 
+                    (member.activities || []).map(act => ({ ...act, userName: member.displayName }))
+                )
+                .sort((a, b) => b.timestamp - a.timestamp) // Sort by most recent
+                .slice(0, 10); // Get top 10 recent
+
+            const leaderboard = [...allMembersData]
+                .sort((a, b) => b.productive - a.productive) // Sort by most productive
+                .slice(0, 3); // Get top 3
+
+            // 5. Render the full circle page
+            this.renderCircleLayout(circleContentEl, circleData.name);
+            this.renderCircleMembers(document.getElementById('circleMembersList'), allMembersData);
+            this.renderActivityFeed(document.getElementById('circleActivityFeed'), activityFeed);
+            this.renderLeaderboard(document.getElementById('circleLeaderboard'), leaderboard);
+
+        } catch (error) {
+            console.error('Error loading circle:', error);
+            this.showToast('Failed to load circle data');
+            circleContentEl.innerHTML = `<p class="empty-state">Failed to load circle data. Please try again.</p>`;
+        }
+    }
+
+    // NEW function to render the main circle page structure
+    renderCircleLayout(container, circleName) {
+        container.innerHTML = `
+            <div class="circle-header">
+                <h1>${circleName}</h1>
+                <button class="invite-btn" id="inviteCircleBtn">Invite Members</button>
+            </div>
+            <div class="circle-grid">
+                <div class="circle-main">
+                    <section id="circleMembersSection">
+                        <h2>Circle Members</h2>
+                        <div id="circleMembersList"></div>
+                    </section>
+                    <section id="circleActivitySection">
+                        <h2>Activity Feed</h2>
+                        <div class="activity-feed-list" id="circleActivityFeed"></div>
+                    </section>
+                </div>
+                <div class="circle-sidebar">
+                    <section id="circleLeaderboardSection">
+                        <h2>Weekly Leaderboard</h2>
+                        <div class="leaderboard-widget" id="circleLeaderboard"></div>
+                    </section>
+                </div>
+            </div>
         `;
+        document.getElementById('inviteCircleBtn').addEventListener('click', () => {
+            const code = prompt('Share this code with your friends!'); // Placeholder
+            this.showToast('Invite feature coming soon!');
+        });
+    }
+
+    // NEW function to render member cards
+    renderCircleMembers(container, members) {
+        if (!members || members.length === 0) {
+            container.innerHTML = `<p class="empty-state">No members to show.</p>`;
+            return;
+        }
+
+        container.innerHTML = members.map(member => {
+            const productiveH = (member.productive / 3600).toFixed(1);
+            const personalH = (member.personal / 3600).toFixed(1);
+            const sleepH = (member.sleep / 3600).toFixed(1);
+            
+            const productiveP = Math.min((member.productive / (8 * 3600)) * 100, 100);
+            const personalP = Math.min((member.personal / (8 * 3600)) * 100, 100);
+            const sleepP = Math.min((member.sleep / (8 * 3600)) * 100, 100);
+
+            return `
+            <div class="circle-member-card">
+                <div class="member-header">
+                    <img src="${member.photoURL || 'assets/default-avatar.svg'}" alt="Avatar" class="member-avatar">
+                    <div class="member-info">
+                        <h4>${member.displayName}</h4>
+                    </div>
+                </div>
+                <div class="member-stats">
+                    <div class="stat-item">
+                        <span>Productive</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${productiveP}%; background: var(--productive);"></div>
+                        </div>
+                        <span class="stat-time">${productiveH}h</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Personal</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${personalP}%; background: var(--personal);"></div>
+                        </div>
+                        <span class="stat-time">${personalH}h</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Sleep</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${sleepP}%; background: var(--sleep);"></div>
+                        </div>
+                        <span class="stat-time">${sleepH}h</span>
+                    </div>
+                </div>
+            </div>
+            `;
+        }).join('');
+    }
+
+    // NEW function to render activity feed
+    renderActivityFeed(container, activities) {
+        if (!activities || activities.length === 0) {
+            container.innerHTML = `<p class="empty-state">No recent activity.</p>`;
+            return;
+        }
+
+        container.innerHTML = activities.map(act => {
+            const durationMin = Math.floor(act.duration / 60);
+            const timeAgo = this.formatTimeAgo(act.timestamp);
+
+            return `
+            <div class="feed-item">
+                <div class="feed-icon">✓</div>
+                <div class="feed-info">
+                    <p><b>${act.userName}</b> finished: ${act.name} (${durationMin}m)</p>
+                    <span>${timeAgo}</span>
+                </div>
+            </div>
+            `;
+        }).join('');
+    }
+
+    // NEW function to render leaderboard
+    renderLeaderboard(container, leaderboard) {
+        if (!leaderboard || leaderboard.length === 0) {
+            container.innerHTML = `<p class="empty-state">No data for leaderboard.</p>`;
+            return;
+        }
+
+        container.innerHTML = `
+        <div class="leaderboard-list">
+            ${leaderboard.map((member, index) => {
+                const productiveH = (member.productive / 3600).toFixed(1);
+                return `
+                <div class="leaderboard-item">
+                    <span class="leaderboard-rank">#${index + 1}</span>
+                    <img src="${member.photoURL || 'assets/default-avatar.svg'}" alt="Avatar" class="member-avatar" style="width: 35px; height: 35px;">
+                    <div class="leaderboard-info">
+                        <p>${member.displayName}</p>
+                    </div>
+                    <span class="leaderboard-time">${productiveH}h</span>
+                </div>
+                `;
+            }).join('')}
+        </div>
+        `;
+    }
+
+    // NEW helper function for time ago
+    formatTimeAgo(timestamp) {
+        const now = Date.now();
+        const seconds = Math.floor((now - timestamp) / 1000);
         
-        document.getElementById('joinCircleBtn').addEventListener('click', () => this.joinCircle());
+        let interval = seconds / 31536000;
+        if (interval > 1) return Math.floor(interval) + "y ago";
+        interval = seconds / 2592000;
+        if (interval > 1) return Math.floor(interval) + "mo ago";
+        interval = seconds / 86400;
+        if (interval > 1) return Math.floor(interval) + "d ago";
+        interval = seconds / 3600;
+        if (interval > 1) return Math.floor(interval) + "h ago";
+        interval = seconds / 60;
+        if (interval > 1) return Math.floor(interval) + "m ago";
+        return Math.floor(seconds) + "s ago";
     }
 
     showToast(message) {
