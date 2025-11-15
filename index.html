@@ -8,14 +8,12 @@
 </head>
 <body>
     <div id="app">
-        <!-- Hamburger Menu -->
         <button class="hamburger" id="menuToggle" aria-label="Toggle menu">
             <span></span>
             <span></span>
             <span></span>
         </button>
 
-        <!-- Side Navigation -->
         <nav class="sidenav" id="sidenav">
             <div class="user-profile">
                 <div class="avatar-container">
@@ -41,9 +39,7 @@
             </ul>
         </nav>
 
-        <!-- Main Content -->
         <main id="mainContent">
-            <!-- Home Page -->
             <div id="home" class="page active">
                 <div class="timer-container">
                     <svg class="circular-timer" viewBox="0 0 200 200">
@@ -92,7 +88,6 @@
                 </div>
             </div>
 
-            <!-- Statistics Page -->
             <div id="statistics" class="page">
                 <h1>Today's Statistics</h1>
                 <canvas id="pieChart" width="300" height="300"></canvas>
@@ -104,16 +99,13 @@
                 </div>
             </div>
 
-            <!-- Circle Page -->
             <div id="circle" class="page">
-                <h1>My Circle</h1>
                 <div id="circleContent">
                     <p class="empty-state">You haven't joined a circle yet.</p>
                     <button class="join-circle-btn" id="joinCircleBtn">Join a Circle</button>
                 </div>
             </div>
 
-            <!-- Create Circle Page -->
             <div id="create-circle" class="page">
                 <h1>Create New Circle</h1>
                 <div class="create-circle-form">
@@ -124,7 +116,6 @@
             </div>
         </main>
 
-        <!-- Activity Modal -->
         <div class="modal" id="activityModal">
             <div class="modal-content">
                 <h2>What are you doing?</h2>
@@ -136,11 +127,9 @@
             </div>
         </div>
 
-        <!-- Success Toast -->
         <div class="toast" id="toast"></div>
     </div>
 
-    <!-- Firebase SDK -->
     <script type="module" src="js/firebase-config.js"></script>
     <script type="module" src="js/app.js"></script>
 </body>
